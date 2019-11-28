@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+    <meta http-equiv=”Content-Type” content=”text/html; charset=utf-8″>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <link rel="stylesheet" href="https://cdn.bootcss.com/bootstrap/4.0.0/css/bootstrap.min.css"
+        integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+    <title>Document</title>
+    <style>
+        .warrp {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            margin: 30px;
+        }
+
+        #textout {
+            padding-left: 15px;
+            padding-right: 15px;
+            padding-bottom: 15px;
+        }
+
+        .input-group {
+            padding-top: 15px;
+        }
+
+        p {
+            margin: auto
+        }
+
+        .textarea {
+            width: 100%;
+            min-height: 20px;
+            max-height: 300px;
+            _height: 120px;
+            margin-left: auto;
+            margin-right: auto;
+            padding: 3px;
+            outline: 0;
+            border: 1px solid #a0b3d6;
+            line-height: 24px;
+            padding: 2px;
+            word-wrap: break-word;
+            overflow-x: hidden;
+            overflow-y: auto;
+            -webkit-user-modify: read-write-plaintext-only;
+            border-color: rgba(82, 168, 236, 0.8);
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1), 0 0 8px rgba(82, 168, 236, 0.6);
+        }
+
+        #cbs {
+            width: 100%;
+            display: flex;
+            flex-wrap: wrap;
+            min-width: 200px;
+            justify-content: center
+        }
+
+        #cbs>div {
+            min-width: 300px;
+            width: 250px;
+            flex: 1;
+            overflow: hidden;
+        }
+    </style>
+</head>
+
+
+<body>
+    <div class="warrp">
+        <div class="page-header">
+            <h1>自动转换工具 <small>MAVEN</small></h1>
+        </div>
+        <div class="input-group">
+            <input type="file" onchange="jsReadFiles(this.files)" class="form-control" />
+        </div>
+        <div class="input-group mb-3">
+            <div id="ip" class="textarea" contenteditable="true"></div>
+            <div class="input-group-append">
+                <button class="btn btn-primary" type="button" onclick="formatting()">开始转换</button>
+            </div>
+
+        </div>
+        <div class="input-group mb-3">
+            <div id="cbs" class="input-group-prepend">
+                <div class="input-group-text">
+                    <input type="checkbox" id="cb">
+                    <p>始终使用最新版本的库</p>
+                    <p class="text-warning">不建议</p>
+                </div>
+                <div class="input-group-text">
+                    <input type="checkbox" id="cb2">
+                    <p>使用api 代替compile</p>
+                    <p class="text-warning">Fashion Coder</p>
+                </div>
+                <div class="input-group-text">
+                    <input type="checkbox" id="cb3">
+                    <p>不添加版本信息</p>
+                    <p class="text-warning">pom是子模块的！</p>
+                </div>
+            </div>
+        </div>
+        <div id="textout"></div>
+    </div>
+</body>
+<script src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
+
+<script>
+    //js 读取文件
+    function jsReadFiles(files) {
+        if (files.length) {
+            var file = files[0];
+            var reader = new FileReader()
+            var text = reader.readAsText(file)
+            reader.onload = function () {
+                $("#ip").text(this.result)
+            }
+        }
+    }
+    function formatWithErroWarrp(contents) {
+        try {
+            format(contents)
+        } catch (error) {
+            $('#textout').append("文件格式错误")
+            $('#textout').attr("class", "alert alert-primary")
+        }
+    }
+    function format(contents) {
+        $('#textout').empty()
+        var userApi = $("#cb2").is(':checked')
+        var awaryLatest = $("#cb").is(':checked')
+        var noVersion = $("#cb3").is(':checked')
+        var xml = getxml(contents)
+        var dependency = getDependencyXml(xml)
+        var pather = getparentXml(xml)
+        if (pather.item(0) != null) {
+            pather = pather.item(0).getElementsByTagName("version").item(0).textContent
+        } else {
+            pather = null
+        }
+        if (dependency.length < 1) {
+            $('#textout').append("找不到依赖的库\n")
+            throw "文件格式出错"
+        } else {
+            $('#textout').attr("class", "alert alert-primary")
+            for (var i = 0; i < dependency.length; i++) {
+                let temp = "compile "
+                if (userApi) {
+                    temp = "api "
+                }
+                let children = dependency[i]
+                let group = dependency[i].getElementsByTagName("groupId").item(0).textContent
+                let name = dependency[i].getElementsByTagName("artifactId").item(0).textContent
+                let version = dependency[i].getElementsByTagName("version").item(0)
+                if (version === null) {
+                    if (pather === null && !noVersion) {
+                        //如果没有 pather标签子标签又没有version 格式错误
+                        $('#textout').append("缺失version标签 不需要version 请勾选！\n")
+                        throw "文件格式出错"
+                    } else {
+                        version = pather
+                    }
+                } else {
+                    version = version.textContent
+                }
+                if (noVersion) {
+                    temp += "group:" + " \'" + group + "\', name: " + "\'" + name + "\'" + " \n "
+                } else {
+                    if (awaryLatest) {
+                        temp += "group:" + " \'" + group + "\', name: " + "\'" + name + ",version: latest.release" + "\'" + " \n "
+                    } else {
+                        temp += "group:" + " \'" + group + "\', name: " + "\'" + name + ",version: " + version + "\'" + " \n "
+                    }
+                }
+
+                $('#textout').append("<br>" + temp + "</br>")
+            }
+        }
+    }
+    function formatting() {
+        formatWithErroWarrp($('#ip').text())
+    }
+    function getxml(content) {
+        var p = new DOMParser(); //创建文档对象
+        return xmlObj = p.parseFromString(content, 'text/xml')
+    }
+    //return xml节点
+    function getDependencyXml(xmlObj) {
+        return xmlObj.getElementsByTagName("dependency")
+    }
+    function getparentXml(xmlObj) {
+        return xmlObj.getElementsByTagName("parent")
+    }
+    // TODO 保存成文件格式
+    function writeFile(filename, filecontent) {
+        var fso, f, s;
+        fso = new ActiveXObject("Scripting.FileSystemObject");
+        f = fso.OpenTextFile(filename, 8, true);
+        f.WriteLine(filecontent);
+        f.Close();
+        alert('ok');
+    }
+</script>
+
+</html>
